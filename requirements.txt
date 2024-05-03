@@ -6,4 +6,5 @@ matplotlib
 sounddevice
 samplerate
 mir_eval
+pesq
 librosa
