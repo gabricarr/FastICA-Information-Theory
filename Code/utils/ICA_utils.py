@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 import sounddevice as sd
+from IPython.display import display, Audio
 
 
 
@@ -94,6 +95,32 @@ def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complet
     return S, W     
 
 
+def norm_signals(signals_np, start=0, end=None): 
+    """
+    Normalize signals in a NumPy array by dividing each signal by its maximum absolute value.
+
+    Parameters:
+    - signals_np (numpy.ndarray): 1D or 2D array containing signals.
+    - start (int): Start index for normalization (default: 0).
+    - end (int): End index for normalization (default: None, which means until the end).
+
+    Returns:
+    - signals_normalized (numpy.ndarray): Normalized signals.
+    """
+    # If signals_np is 1D, convert it to a 2D array with one column
+    if signals_np.ndim == 1:
+        signals_np = signals_np[:, np.newaxis]
+
+    # Calculate the maximum absolute value along the appropriate axis
+    max_values = np.max(np.abs(signals_np), axis=1, keepdims=True)
+
+    # Normalize the signals
+    if end is None:
+        signals_normalized = signals_np[:, start:] / max_values
+    else:
+        signals_normalized = signals_np[:, start:end] / max_values
+
+    return signals_normalized
 
 
 
@@ -151,6 +178,21 @@ def play_audio_from_array(audio_np, samplerate=44100):
 
     # Use sd.wait() to wait until file is done playing
     sd.wait()
+
+
+def audio_widget(audio_np, samplerate, name='audio'):
+    """
+    Create Audio widgets from a 2D NumPy array of audio sources.
+
+    Parameters:
+    - audio_np (numpy.ndarray): 2D array containing audio sources.
+    - samplerate (int): Sample rate of the audio sources.
+    - name (str): Name prefix for the audio widgets (default: 'audio').
+    """
+    for i in range(audio_np.shape[0]):
+        print(f'{name} {i+1}:')
+        display(Audio(audio_np[i, :], rate=samplerate))
+
 
 
 
