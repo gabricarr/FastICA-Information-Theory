@@ -1,7 +1,7 @@
 # ICA-Information-Theory
 
 ## Project Goal: 
-This project aims to implement and validate the Fast ICA algorithm based on Negentropy, as described in the papers: 
+The aim of this project is to implement and validate the Fast ICA algorithm based on Negentropy, as described in the papers: 
 - *Independent component analysis: An introduction.* by Alaa Tharwat
 - *Blind Source Separation of Underwater Acoustic Signal by Use of Negentropy-based Fast ICA Algorithm.* by Tu Shijie and Chen Hang.
 
