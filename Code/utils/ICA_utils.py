@@ -7,8 +7,18 @@ from IPython.display import display, Audio
 
 
 
-# This function assumes as input a matrix X with samples on columns
 def preprocessing(X, n_sources, under_complete = True):
+    """
+    Preprocesses the input data matrix X for independent component analysis (ICA).
+
+    Parameters:
+    - X (numpy.ndarray): Input data matrix with samples on columns.
+    - n_sources (int): Number of independent sources.
+    - under_complete (bool): If True, performs under-complete ICA by reducing dimensionality to n_sources (default: True).
+
+    Returns:
+    - T_norm (numpy.ndarray): Preprocessed data matrix for ICA.
+    """
     # Centering step 
     X_mean = np.mean(X, axis = 1)               # Samples on columns
     X_bar = X - X_mean[:, None]
@@ -38,8 +48,21 @@ def preprocessing(X, n_sources, under_complete = True):
 
 
 
-# This function assumes as input a matrix X with samples on columns, automatically performs the preprocessing step
 def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complete = True):
+    """
+    Perform Independent Component Analysis (ICA) on the input mixture signals, automatically performs the preprocessing step.
+
+    Parameters:
+    - mixture_signals (numpy.ndarray): Input matrix with samples on columns.
+    - n_sources (int): Number of independent sources.
+    - n_iter (int): Maximum number of iterations for FastICA algorithm (default: 5000).
+    - tol (float): Tolerance to declare convergence (default: 1e-9).
+    - under_complete (bool): If True, performs under-complete ICA by reducing dimensionality to n_sources (default: True).
+
+    Returns:
+    - S (numpy.ndarray): Recovered signals.
+    - W (numpy.ndarray): Unmixing matrix.
+    """
     # Preprocessing step
     X = preprocessing(mixture_signals, n_sources, under_complete = under_complete)
 
@@ -124,8 +147,20 @@ def norm_signals(signals_np, start=0, end=None):
 
 
 
-# Function to plot the signals
+
 def plot_signals(t, S, title, labels = False, scaling = 1, xlim = 30, linewidth = 4): 
+    """
+    Plot the signals superimposed  on the same plot.
+
+    Parameters:
+    - t (numpy.ndarray): Time axis.
+    - S (numpy.ndarray): Matrix of signals to plot.
+    - title (str): Title of the plot.
+    - labels (bool): If True, display labels for each signal (default: False).
+    - scaling (float): Scaling factor for the y-axis (default: 1).
+    - xlim (int): Limit for the x-axis (default: 30).
+    - linewidth (int): Width of the lines in the plot (default: 4).
+    """
     # Creating the figure
     plt.figure(figsize=(20, 6))
 
@@ -152,7 +187,17 @@ def plot_signals(t, S, title, labels = False, scaling = 1, xlim = 30, linewidth 
 
 
 def plot_signals_sequential(t, X, type, scaling = 1, xlim = 30, linewidth = 4):
+    """
+    Plot the mixed signals sequentially.
 
+    Parameters:
+    - t (numpy.ndarray): Time axis.
+    - X (numpy.ndarray): Matrix of mixed signals.
+    - type (str): Type of the signals (e.g., "Mixed").
+    - scaling (float): Scaling factor for the y-axis (default: 1).
+    - xlim (int): Limit for the x-axis (default: 30).
+    - linewidth (int): Width of the lines in the plot (default: 4).
+    """
     n_mixtures = X.shape[0]
 
     # Plotting the mixed signals
@@ -242,11 +287,20 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
 
 
 def play_audio_from_array(audio_np, samplerate=44100):
+    """
+    Play audio from a NumPy array.
+
+    Parameters:
+    - audio_np (numpy.ndarray): Audio data as a 1D NumPy array.
+    - samplerate (int): Sampling rate of the audio (default: 44100).
+    """
     # Play the audio
     sd.play(audio_np, samplerate=samplerate)
 
     # Use sd.wait() to wait until file is done playing
     sd.wait()
+
+
 
 
 def audio_widget(audio_np, samplerate, name='audio'):
