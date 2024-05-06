@@ -215,8 +215,6 @@ def plot_signals_sequential(t, X, type, scaling = 1, xlim = 30, linewidth = 4):
         axs[i].set_xlim(0, xlim)
         axs[i].set_ylim(-1*scaling, 1*scaling)
 
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 
@@ -235,55 +233,63 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         show_histogram (bool): Whether to plot histograms (default: True).
         fmax (int): Maximum frequency limit for spectrogram plotting (default: 5000 Hz).
     """
-    # Convert 1D array to 2D with single row if needed
-    if signals_np.ndim == 1:
-        signals_np = np.expand_dims(signals_np, axis=0)
 
+    # Set the font size
+    plt.rcParams.update({'font.size': 18})
+
+    # Ensure signals_np is 2D
+    signals_np = np.atleast_2d(signals_np)
+    
     # Number of signals
     N = signals_np.shape[0]
-    # Number of plots to show
+    
+    # Calculate number of plots
     num_plots = sum([show_waveform, show_spectrogram, show_histogram])
-
+    
     # Set up subplots
-    fig, axs = plt.subplots(nrows=N, ncols=num_plots, figsize=(11, 3*N))
-
+    if N == 1:
+        fig, axs = plt.subplots(1, num_plots, figsize=(15*num_plots, 11))
+    else:
+        fig, axs = plt.subplots(N, num_plots, figsize=(15*num_plots, 11*N))
+    
+    # Iterate over signals
     for i in range(N):
-        col = 0  # Start column index for the subplot
-
+        plot_index = 0
+        
         # Plot waveform
         if show_waveform:
-            axs[i, col].plot(np.arange(len(signals_np[i][start:end])) / fs, signals_np[i][start:end])
-            axs[i, col].set_title(f'Waveform - {names[i] if isinstance(names, list) else names} {i+1}')
-            axs[i, col].set_xlabel('Time (s)')
-            axs[i, col].set_ylabel('Amplitude')
-            axs[i, col].set_ylim(-1, 1)  # Set y-axis limits
-            axs[i, col].grid(True)  # Add gridlines
-            col += 1
-
+            plt.subplot(N, num_plots, i * num_plots + 1)
+            plt.plot(np.arange(len(signals_np[i][start:end])) / fs, signals_np[i][start:end])
+            plt.title(f'Waveform - {names[i] if isinstance(names, list) else names} {i+1}')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Amplitude')
+            plt.ylim(-1, 1)
+            plt.grid(True)
+            plot_index += 1
+        
         # Plot spectrogram
         if show_spectrogram:
-            axs[i, col].specgram(signals_np[i][start:end], NFFT=1024, Fs=fs, cmap='viridis', vmin=-80)
-            axs[i, col].set_title(f'Spectrogram - {names[i] if isinstance(names, list) else names} {i+1}')
-            axs[i, col].set_xlabel('Time (s)')
-            axs[i, col].set_ylabel('Frequency (Hz)')
-            axs[i, col].set_ylim(0, fmax)  # Set y-axis limits
-            axs[i, col].grid(True)  # Add gridlines
-            col += 1
-
+            plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
+            plt.specgram(signals_np[i][start:end], NFFT=1024, Fs=fs, cmap='viridis', vmin=-80)
+            plt.title(f'Spectrogram - {names[i] if isinstance(names, list) else names} {i+1}')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Frequency (Hz)')
+            plt.ylim(0, fmax)
+            plt.grid(True)
+            plot_index += 1
+        
         # Plot histogram
         if show_histogram:
-            axs[i, col].hist(signals_np[i][start:end], bins=50)
-            axs[i, col].set_title(f'Histogram - {names[i] if isinstance(names, list) else names} {i+1}')
-            axs[i, col].set_xlabel('Amplitude')
-            axs[i, col].set_ylabel('Frequency')
-            axs[i, col].set_xlim(-1, 1)  # Set x-axis limits
-            axs[i, col].grid(True)  # Add gridlines
-
+            plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
+            plt.hist(signals_np[i][start:end], bins=50)
+            plt.title(f'Histogram - {names[i] if isinstance(names, list) else names} {i+1}')
+            plt.xlabel('Amplitude')
+            plt.ylabel('Frequency')
+            plt.xlim(-1, 1)
+            plt.grid(True)
+    
     plt.tight_layout()
     plt.show()
-
-
-
 
 
 def play_audio_from_array(audio_np, samplerate=44100):
