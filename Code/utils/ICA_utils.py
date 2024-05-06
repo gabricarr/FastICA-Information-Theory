@@ -118,7 +118,7 @@ def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complet
     return S, W     
 
 
-def norm_signals(signals_np, start=0, end=None): 
+def norm_signals(signals_np, start=0, end=None, epsilon=1e-10): 
     """
     Normalize signals in a NumPy array by dividing each signal by its maximum absolute value.
 
@@ -126,16 +126,20 @@ def norm_signals(signals_np, start=0, end=None):
     - signals_np (numpy.ndarray): 1D or 2D array containing signals.
     - start (int): Start index for normalization (default: 0).
     - end (int): End index for normalization (default: None, which means until the end).
+    - epsilon (float): Small value to avoid division by zero (default: 1e-10).
 
     Returns:
     - signals_normalized (numpy.ndarray): Normalized signals.
     """
     # If signals_np is 1D, convert it to a 2D array with one column
     if signals_np.ndim == 1:
-        signals_np = signals_np[:, np.newaxis]
+        signals_np = signals_np[np.newaxis,:]
 
     # Calculate the maximum absolute value along the appropriate axis
     max_values = np.max(np.abs(signals_np), axis=1, keepdims=True)
+
+    # Avoid division by zero
+    max_values[max_values < epsilon] = epsilon
 
     # Normalize the signals
     if end is None:
@@ -248,9 +252,9 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
     
     # Set up subplots
     if N == 1:
-        fig, axs = plt.subplots(1, num_plots, figsize=(15*num_plots, 11))
+        fig, axs = plt.subplots(1, num_plots, figsize=(19*num_plots, 11))
     else:
-        fig, axs = plt.subplots(N, num_plots, figsize=(15*num_plots, 11*N))
+        fig, axs = plt.subplots(N, num_plots, figsize=(19*num_plots, 11*N))
     
     # Iterate over signals
     for i in range(N):
@@ -308,7 +312,6 @@ def play_audio_from_array(audio_np, samplerate=44100):
 
 
 
-
 def audio_widget(audio_np, samplerate, name='audio'):
     """
     Create Audio widgets from a 2D NumPy array of audio sources.
@@ -316,11 +319,18 @@ def audio_widget(audio_np, samplerate, name='audio'):
     Parameters:
     - audio_np (numpy.ndarray): 2D array containing audio sources.
     - samplerate (int): Sample rate of the audio sources.
-    - name (str): Name prefix for the audio widgets (default: 'audio').
+    - name (str or list): Name prefix for the audio widgets. If it's a list, each audio source will be named accordingly.
     """
-    for i in range(audio_np.shape[0]):
-        print(f'{name} {i+1}:')
-        display(Audio(audio_np[i, :], rate=samplerate))
+    if isinstance(name, list):
+        assert len(name) == audio_np.shape[0], "Number of names should match the number of audio sources."
+        for i, audio in enumerate(audio_np):
+            print(f'{name[i]}:')
+            display(Audio(audio, rate=samplerate))
+    else:
+        for i, audio in enumerate(audio_np):
+            print(f'{name} {i+1}:')
+            display(Audio(audio, rate=samplerate))
+
 
 
 
