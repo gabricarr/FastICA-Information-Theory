@@ -1,9 +1,12 @@
 import os
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 import sounddevice as sd
 from IPython.display import display, Audio
+import pyroomacoustics as pra
+import mir_eval
 
 
 def preprocessing(X, n_sources, under_complete = True):
@@ -129,6 +132,9 @@ def import_audio_folder(folder_path, duration=None):
     - file_names (list): List of file names in the folder.
     - length (samples): sample length of all audio samples after the importing and trimming.
     """
+
+    # Suppressione specifica delle avvertenze WavFileWarning
+    warnings.filterwarnings("ignore", category=wavfile.WavFileWarning)
 
     # Find all the audio files in the folder
     file_names = [file for file in os.listdir(folder_path) if file.endswith(".wav")]
@@ -283,6 +289,8 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         show_histogram (bool): Whether to plot histograms (default: True).
         fmax (int): Maximum frequency limit for spectrogram plotting (default: 5000 Hz).
     """
+    # Suppress specific warning
+    warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
     # Set the font size
     plt.rcParams.update({'font.size': 18})
@@ -298,9 +306,9 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
     
     # Set up subplots
     if N == 1:
-        fig, axs = plt.subplots(1, num_plots, figsize=(19*num_plots, 11))
+        fig, axs = plt.subplots(1, num_plots, figsize=(18*num_plots, 8))
     else:
-        fig, axs = plt.subplots(N, num_plots, figsize=(19*num_plots, 11*N))
+        fig, axs = plt.subplots(N, num_plots, figsize=(18*num_plots, 8*N))
     
     # Iterate over signals
     for i in range(N):
@@ -310,7 +318,7 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         if show_waveform:
             plt.subplot(N, num_plots, i * num_plots + 1)
             plt.plot(np.arange(len(signals_np[i][start:end])) / fs, signals_np[i][start:end])
-            plt.title(f'Waveform - {names[i] if isinstance(names, list) else names} {i+1}')
+            plt.title(f'WAVEFORM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Time (s)')
             plt.ylabel('Amplitude')
             plt.ylim(-1, 1)
@@ -320,8 +328,9 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         # Plot spectrogram
         if show_spectrogram:
             plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
-            plt.specgram(signals_np[i][start:end], NFFT=1024, Fs=fs, cmap='viridis', vmin=-80)
-            plt.title(f'Spectrogram - {names[i] if isinstance(names, list) else names} {i+1}')
+            epsilon = 1e-10
+            plt.specgram(signals_np[i][start:end]+epsilon, NFFT=1024, Fs=fs, cmap='viridis', vmin=-80)
+            plt.title(f'SPECTROGRAM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Time (s)')
             plt.ylabel('Frequency (Hz)')
             plt.ylim(0, fmax)
@@ -332,7 +341,7 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         if show_histogram:
             plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
             plt.hist(signals_np[i][start:end], bins=50)
-            plt.title(f'Histogram - {names[i] if isinstance(names, list) else names} {i+1}')
+            plt.title(f'HISTOGRAM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Amplitude')
             plt.ylabel('Frequency')
             plt.xlim(-1, 1)
@@ -351,9 +360,6 @@ def plot_overlapped_signals(original_signals, reconstructed_signals, names, fs):
         reconstructed_signals (list of arrays): List containing reconstructed signals.
         names (list of str): List of names for each signal.
         fs (float): Sampling frequency.
-
-    Returns:
-        None
     """
     # Calculate time axis in seconds
     time_sec = np.arange(len(original_signals[0])) / fs
@@ -380,6 +386,99 @@ def plot_overlapped_signals(original_signals, reconstructed_signals, names, fs):
     plt.suptitle('Overlapped Signals')  # Overall title for the plot
     plt.tight_layout()  # Adjust layout to prevent overlapping of subplots
     plt.show()  # Display the plot
+
+
+def postprocessing(S, S_recovered):
+    """
+    Function to permute the reconstructed signals from fastICA in the correct order 
+    so that they can be subsequently compared with the original signals.
+    Additionally, it flips the signals if the correlation coefficient between the original 
+    and the recovered signals is negative.
+
+    Parameters:
+    - S: numpy array, shape (n_sources, n_samples)
+        Original sources.
+    - S_recovered: numpy array, shape (n_sources, n_samples)
+        Recovered sources.
+
+    Returns:
+    - S_recovered_perm: numpy array, shape (n_sources, n_samples)
+        Permuted separated sources based on the permutation variable extracted by bss_eval
+    """
+
+    # Using mir_eval library to calculate BSS evaluation metrics
+    _, _, _, perm = mir_eval.separation.bss_eval_sources(S, S_recovered, compute_permutation=True)
+
+    # Permuting the separated sources based on the permutation variable
+    # This step is crucial because the order of the separated_sources may not match the order of the original sources after fastICA 
+    # We align them with the original sources to facilitate comparison and evaluation
+
+    # Initialize an array to store the permuted separated sources
+    S_recovered_perm = np.empty_like(S_recovered)
+
+    # Permute the separated sources based on the permutation variable
+    for i, p in enumerate(perm):
+        S_recovered_perm[i] = S_recovered[p]
+
+    # Now separated_sources_permuted contains the separated sources in the same order as the original sources
+
+    # Adjust the sign of the recovered sources if necessary based on the correlation coefficient
+    # If the correlation coefficient between the original and recovered signals is negative,
+    # it indicates a phase inversion, so we flip the sign of the recovered signal to match.
+    # Adjust the sign of the recovered sources if necessary based on the difference between maximum and minimum values
+    for i in range(len(S)):
+        # Calculate the maximum and minimum values of the original and recovered signals
+        original_max = np.max(S[i])
+        original_min = np.min(S[i])
+        recovered_max = np.max(S_recovered_perm[i])
+        recovered_min = np.min(S_recovered_perm[i])
+
+        # Calculate the absolute differences
+        max_max_diff = abs(abs(original_max) - abs(recovered_max))
+        max_min_diff = abs(abs(original_max) - abs(recovered_min))
+
+        # If the difference in the recovered signal is less than the difference in the original signal, flip its sign
+        if max_max_diff > max_min_diff:
+            S_recovered_perm[i] = -1 * S_recovered_perm[i]
+
+    return S_recovered_perm
+
+
+def plot_scores(names, bss_score):
+    """
+    Plots the Source Separation Metrics (SDR, SIR, SAR) and mean scores, and prints the mean scores along with the best-reconstructed signal.
+    
+    Parameters:
+        names (list): List of names of the signals.
+        bss_score (list): List containing three arrays of scores for SDR, SIR, and SAR respectively.
+    """
+    # Extract SDR, SIR, SAR from bss_score
+    SDR = bss_score[0]
+    SIR = bss_score[1]
+    SAR = bss_score[2]
+    
+    # Calculate mean scores
+    mean_scores = (SDR + SIR + SAR) / 3
+    
+    # Plot SDR, SIR, SAR
+    plt.figure(figsize=(10, 6))
+    plt.barh(names, SDR, color='skyblue', label='SDR')
+    plt.barh(names, SIR, color='salmon', left=SDR, label='SIR')
+    plt.barh(names, SAR, color='lightgreen', left=[i+j for i,j in zip(SDR, SIR)], label='SAR')
+    plt.xlabel('Scores')
+    plt.title('Source Separation Metrics')
+    plt.legend()
+    plt.grid(axis='x')
+    plt.show()
+
+    # Print the mean scores and the best-reconstructed signal
+    print("Mean Scores:")
+    for i, score in enumerate(mean_scores):
+        print(f"{names[i]}: {score:.2f}")
+
+    # Find the index of the maximum mean score
+    best_signal_index = np.argmax(mean_scores)
+    print(f"\nThe best-reconstructed signal is {names[best_signal_index]} with a mean score of {mean_scores[best_signal_index]:.2f}")
 
 
 def play_audio_from_array(audio_np, samplerate=44100):
@@ -415,6 +514,44 @@ def audio_widget(audio_np, samplerate, names='audio'):
         for i, audio in enumerate(audio_np):
             print(f'{names} {i+1}:')
             display(Audio(audio, rate=samplerate))
+
+
+def create_directional_object(mic_type, azimuth):
+    """
+    Create a directional object based on the microphone type and azimuth angle.
+
+    Parameters:
+        mic_type (str): Type of microphone pattern.
+            Should be one of 'FIGURE_EIGHT', 'HYPERCARDIOID', 'CARDIOID', 'SUBCARDIOID', or 'OMNI'.
+        azimuth (float): Azimuth angle (horizontal angle) at which the directional object should be oriented, in degrees.
+
+    Returns:
+        pra.CardioidFamily: Directional object representing the specified microphone pattern oriented at the given azimuth angle.
+    """
+    # Mapping of mic types to corresponding directivity patterns
+    mic_type_mapping = {
+        "FIGURE_EIGHT": pra.DirectivityPattern.FIGURE_EIGHT,
+        "HYPERCARDIOID": pra.DirectivityPattern.HYPERCARDIOID,
+        "CARDIOID": pra.DirectivityPattern.CARDIOID,
+        "SUBCARDIOID": pra.DirectivityPattern.SUBCARDIOID,
+        "OMNI": pra.DirectivityPattern.OMNI
+    }
+    
+    # Check if the mic_type is valid
+    if mic_type not in mic_type_mapping:
+        raise ValueError("Invalid mic_type. Please choose one of FIGURE_EIGHT, HYPERCARDIOID, CARDIOID, SUBCARDIOID, or OMNI.")
+    
+    # Create the directional object using the CardioidFamily class
+    directional_object = pra.CardioidFamily(
+        orientation=pra.DirectionVector(azimuth=azimuth, degrees=True),  # Specify orientation
+        pattern_enum=mic_type_mapping[mic_type]  # Specify directivity pattern
+    )
+    
+    return directional_object
+
+
+
+
 
 
 
