@@ -208,6 +208,28 @@ def norm_signals(signals_np, start=0, end=None, epsilon=1e-10):
     return signals_normalized
 
 
+def snr(S, Y):
+    """
+    Calculate the Signal-to-Noise Ratio (SNR) for each source.
+    
+    Args:
+        S (numpy.ndarray): Original sources of shape (n_sources, n_samples).
+        Y (numpy.ndarray): Recovered sources of shape (n_sources, n_samples).
+    
+    Returns:
+        numpy.ndarray: SNR values for each source, shape (n_sources,).
+    """
+    snr_values = []
+    for i in range(S.shape[0]):
+        signal = S[i]
+        noise = S[i] - Y[i]
+        signal_power = np.mean(signal ** 2)
+        noise_power = np.mean(noise ** 2)
+        snr = 10 * np.log10(signal_power / noise_power)
+        snr_values.append(snr)
+    return np.array(snr_values)
+
+
 def plot_signals(t, S, title, labels = False, scaling = 1, xlim = 30, linewidth = 4): 
     """
     Plot the signals superimposed  on the same plot.
@@ -351,25 +373,25 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
     plt.show()
 
 
-def plot_overlapped_signals(original_signals, reconstructed_signals, names, fs):
+def plot_overlapped_signals(S, Y, names, fs):
     """
     Plot overlapped original and reconstructed signals.
 
     Parameters:
-        original_signals (list of arrays): List containing original signals.
-        reconstructed_signals (list of arrays): List containing reconstructed signals.
+        S (list of arrays): List containing original signals.
+        Y (list of arrays): List containing reconstructed signals.
         names (list of str): List of names for each signal.
         fs (float): Sampling frequency.
     """
     # Calculate time axis in seconds
-    time_sec = np.arange(len(original_signals[0])) / fs
+    time_sec = np.arange(len(S[0])) / fs
 
     # Create subplots for each pair of signals
-    fig, axs = plt.subplots(nrows=len(original_signals), ncols=1, figsize=(10, 3 * len(original_signals)),
+    fig, axs = plt.subplots(nrows=len(S), ncols=1, figsize=(10, 3 * len(S)),
                             sharex=True, sharey=True)
 
     # Plot original and reconstructed signals in each subplot
-    for i, (original, reconstructed) in enumerate(zip(original_signals, reconstructed_signals)):
+    for i, (original, reconstructed) in enumerate(zip(S, Y)):
         axs[i].plot(time_sec, original, label="Original", color='blue', alpha=0.8)  # Plot original signal
         axs[i].plot(time_sec, reconstructed, label="Reconstructed", color='orange', alpha=0.8)  # Plot reconstructed signal
         axs[i].set_title(f"{names[i]}")  # Set title for the subplot
@@ -388,89 +410,106 @@ def plot_overlapped_signals(original_signals, reconstructed_signals, names, fs):
     plt.show()  # Display the plot
 
 
-def postprocessing(S, S_recovered):
+def postprocessing(S, Y):
     """
     Function to permute the reconstructed signals from fastICA in the correct order 
     so that they can be subsequently compared with the original signals.
-    Additionally, it flips the signals if the correlation coefficient between the original 
-    and the recovered signals is negative.
+    Additionally, it flips the signals if the sign of maximum and minimum are swapped.
 
     Parameters:
     - S: numpy array, shape (n_sources, n_samples)
         Original sources.
-    - S_recovered: numpy array, shape (n_sources, n_samples)
+    - Y: numpy array, shape (n_sources, n_samples)
         Recovered sources.
 
     Returns:
-    - S_recovered_perm: numpy array, shape (n_sources, n_samples)
+    - Y_perm: numpy array, shape (n_sources, n_samples)
         Permuted separated sources based on the permutation variable extracted by bss_eval
+        and with flipped sign if 
     """
 
     # Using mir_eval library to calculate BSS evaluation metrics
-    _, _, _, perm = mir_eval.separation.bss_eval_sources(S, S_recovered, compute_permutation=True)
+    _, _, _, perm = mir_eval.separation.bss_eval_sources(S, Y, compute_permutation=True)
 
     # Permuting the separated sources based on the permutation variable
-    # This step is crucial because the order of the separated_sources may not match the order of the original sources after fastICA 
-    # We align them with the original sources to facilitate comparison and evaluation
+    # This step is crucial because the order of Y signals may not match the order of S sources after fastICA 
 
     # Initialize an array to store the permuted separated sources
-    S_recovered_perm = np.empty_like(S_recovered)
+    Y_perm = np.empty_like(Y)
 
-    # Permute the separated sources based on the permutation variable
+    # Permute Y signals based on the permutation variable
     for i, p in enumerate(perm):
-        S_recovered_perm[i] = S_recovered[p]
+        Y_perm[i] = Y[p]
 
-    # Now separated_sources_permuted contains the separated sources in the same order as the original sources
+    # Now Y_perm contains the separated sources in the same order as the original sources S.
 
-    # Adjust the sign of the recovered sources if necessary based on the correlation coefficient
-    # If the correlation coefficient between the original and recovered signals is negative,
-    # it indicates a phase inversion, so we flip the sign of the recovered signal to match.
-    # Adjust the sign of the recovered sources if necessary based on the difference between maximum and minimum values
+    # Adjust the sign of the recovered sources if necessary based on the sign of max and min
+    # The difference between maximum of S and min/max of Y are computed.
+    # if the signal is flipped, the previous max is now a min (and viceversa)
     for i in range(len(S)):
         # Calculate the maximum and minimum values of the original and recovered signals
         original_max = np.max(S[i])
-        original_min = np.min(S[i])
-        recovered_max = np.max(S_recovered_perm[i])
-        recovered_min = np.min(S_recovered_perm[i])
+        recovered_max = np.max(Y_perm[i])
+        recovered_min = np.min(Y_perm[i])
 
         # Calculate the absolute differences
-        max_max_diff = abs(abs(original_max) - abs(recovered_max))
-        max_min_diff = abs(abs(original_max) - abs(recovered_min))
+        max_max_diff = abs(abs(original_max) - abs(recovered_max))  #is the maximum flipped?
+        max_min_diff = abs(abs(original_max) - abs(recovered_min))  #is the minimum flipped?
 
         # If the difference in the recovered signal is less than the difference in the original signal, flip its sign
         if max_max_diff > max_min_diff:
-            S_recovered_perm[i] = -1 * S_recovered_perm[i]
+            Y_perm[i] = -1 * Y_perm[i]
 
-    return S_recovered_perm
+    return Y_perm
 
 
-def plot_scores(names, bss_score):
+def plot_scores(names, scores):
     """
-    Plots the Source Separation Metrics (SDR, SIR, SAR) and mean scores, and prints the mean scores along with the best-reconstructed signal.
+    Plots the Source Separation Metrics (SDR, SIR, SAR, SNR) and mean scores, and prints the mean scores along with the best-reconstructed signal.
     
     Parameters:
         names (list): List of names of the signals.
-        bss_score (list): List containing three arrays of scores for SDR, SIR, and SAR respectively.
+        scores (list): List containing 4 arrays of scores for SDR, SIR, SAR and SNR respectively.
     """
-    # Extract SDR, SIR, SAR from bss_score
-    SDR = bss_score[0]
-    SIR = bss_score[1]
-    SAR = bss_score[2]
+    # Extract SDR, SIR, SAR, SNR from scores
+    SDR = scores[0]
+    SIR = scores[1]
+    SAR = scores[2]
+    SNR = scores[3]
     
     # Calculate mean scores
-    mean_scores = (SDR + SIR + SAR) / 3
+    mean_scores = (SDR + SIR + SAR + SNR) / 4
     
-    # Plot SDR, SIR, SAR
-    plt.figure(figsize=(10, 6))
-    plt.barh(names, SDR, color='skyblue', label='SDR')
-    plt.barh(names, SIR, color='salmon', left=SDR, label='SIR')
-    plt.barh(names, SAR, color='lightgreen', left=[i+j for i,j in zip(SDR, SIR)], label='SAR')
-    plt.xlabel('Scores')
-    plt.title('Source Separation Metrics')
-    plt.legend()
-    plt.grid(axis='x')
+    # Number of signals
+    num_signals = len(names)
+    
+    # Positions of the bars on the x-axis
+    x = np.arange(num_signals)
+    
+    # Width of a bar
+    width = 0.1
+    
+    # Plotting the bars
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Each set of bars is offset by the width of a bar
+    ax.bar(x - 1.5*width, SDR, width, label='SDR', color='skyblue')
+    ax.bar(x - 0.5*width, SIR, width, label='SIR', color='salmon')
+    ax.bar(x + 0.5*width, SAR, width, label='SAR', color='lightgreen')
+    ax.bar(x + 1.5*width, SNR, width, label='SNR', color='purple')
+    
+    # Adding labels, title and grid
+    ax.set_xlabel('Signals')
+    ax.set_ylabel('Scores')
+    ax.set_title('Source Separation Metrics')
+    ax.set_xticks(x)
+    ax.set_xticklabels(names)
+    ax.legend()
+    ax.grid(axis='y')
+    
+    # Display the plot
     plt.show()
-
+    
     # Print the mean scores and the best-reconstructed signal
     print("Mean Scores:")
     for i, score in enumerate(mean_scores):
