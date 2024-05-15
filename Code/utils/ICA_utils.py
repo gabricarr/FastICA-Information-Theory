@@ -73,8 +73,9 @@ def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complet
 
     # Initialize a random weight Matrix with unit varinace
     W = np.random.rand(n_mixtures, n_sources) 
-    W_std = np.std(W, axis = 1) 
-    W = (W) / W_std[:, None]
+    if (n_sources > 1):
+        W_std = np.std(W, axis = 1) 
+        W = (W) / W_std[:, None]
 
 
     # FastICA algorithm
