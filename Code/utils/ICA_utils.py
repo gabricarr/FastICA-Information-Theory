@@ -209,7 +209,7 @@ def norm_signals(signals_np, start=0, end=None, epsilon=1e-10):
     return signals_normalized
 
 
-def snr(S, Y):
+def compute_snr(S, Y):
     """
     Calculate the Signal-to-Noise Ratio (SNR) for each source.
     
