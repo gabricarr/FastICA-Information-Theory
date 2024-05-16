@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.io import wavfile
 import sounddevice as sd
 from IPython.display import display, Audio
-import pyroomacoustics as pra
-import mir_eval
+#import pyroomacoustics as pra
+#import mir_eval
 
 
 def preprocessing(X, n_sources, under_complete = True):
@@ -48,12 +48,13 @@ def preprocessing(X, n_sources, under_complete = True):
     return T_norm
 
 
-def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complete = True):
+def FastIca(mixture_signals, n_to_recover, n_sources, n_iter = 5000, tol = 1e-9, under_complete = True):
     """
     Perform Independent Component Analysis (ICA) on the input mixture signals, automatically performs the preprocessing step.
 
     Parameters:
     - mixture_signals (numpy.ndarray): Input matrix with samples on columns.
+    - n_to_recover (int): Number of sources to recover.
     - n_sources (int): Number of independent sources.
     - n_iter (int): Maximum number of iterations for FastICA algorithm (default: 5000).
     - tol (float): Tolerance to declare convergence (default: 1e-9).
@@ -71,15 +72,12 @@ def FastIca(mixture_signals, n_sources, n_iter = 5000, tol = 1e-9, under_complet
     # Number of samples
     n_samples = X.shape[1]
 
-    # Initialize a random weight Matrix with unit varinace
-    W = np.random.rand(n_mixtures, n_sources) 
-    if (n_sources > 1):
-        W_std = np.std(W, axis = 1) 
-        W = (W) / W_std[:, None]
+    # Initialize a random weight Matrix
+    W = np.random.rand(n_mixtures, n_to_recover) 
 
 
     # FastICA algorithm
-    for p in range(n_sources):
+    for p in range(n_to_recover):
         w_p = W[:, p]                           # recover the p-th row of W
 
         # Computing a single independent component
