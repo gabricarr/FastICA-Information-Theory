@@ -4,9 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 import sounddevice as sd
-from IPython.display import display, Audio
-#import pyroomacoustics as pra
-#import mir_eval
+from IPython.display import display, Audio, HTML
+
+import pyroomacoustics as pra
+import mir_eval
 
 
 def preprocessing(X, n_sources, under_complete = True):
@@ -64,6 +65,7 @@ def FastIca(mixture_signals, n_to_recover, n_sources, n_iter = 5000, tol = 1e-9,
     - S (numpy.ndarray): Recovered signals.
     - W (numpy.ndarray): Unmixing matrix.
     """
+    
     # Preprocessing step
     X = preprocessing(mixture_signals, n_sources, under_complete = under_complete)
 
@@ -424,40 +426,57 @@ def postprocessing(S, Y):
     Returns:
     - Y_perm: numpy array, shape (n_sources, n_samples)
         Permuted separated sources based on the permutation variable extracted by bss_eval
-        and with flipped sign if 
+        and with flipped sign if necessary.
     """
+    
+    # Reshape S and Y if they are 1-dimensional to ensure they have shape (1, n_samples)
+    if S.ndim == 1:
+        S = S.reshape(1, -1)
+    if Y.ndim == 1:
+        Y = Y.reshape(1, -1)
 
-    # Using mir_eval library to calculate BSS evaluation metrics
-    _, _, _, perm = mir_eval.separation.bss_eval_sources(S, Y, compute_permutation=True)
-
-    # Permuting the separated sources based on the permutation variable
-    # This step is crucial because the order of Y signals may not match the order of S sources after fastICA 
-
-    # Initialize an array to store the permuted separated sources
-    Y_perm = np.empty_like(Y)
-
-    # Permute Y signals based on the permutation variable
-    for i, p in enumerate(perm):
-        Y_perm[i] = Y[p]
-
-    # Now Y_perm contains the separated sources in the same order as the original sources S.
-
-    # Adjust the sign of the recovered sources if necessary based on the sign of max and min
-    # The difference between maximum of S and min/max of Y are computed.
-    # if the signal is flipped, the previous max is now a min (and viceversa)
-    for i in range(len(S)):
-        # Calculate the maximum and minimum values of the original and recovered signals
-        original_max = np.max(S[i])
-        recovered_max = np.max(Y_perm[i])
-        recovered_min = np.min(Y_perm[i])
-
-        # Calculate the absolute differences
-        max_max_diff = abs(abs(original_max) - abs(recovered_max))  #is the maximum flipped?
-        max_min_diff = abs(abs(original_max) - abs(recovered_min))  #is the minimum flipped?
-
-        # If the difference in the recovered signal is less than the difference in the original signal, flip its sign
+    # Check if there's only one source
+    if S.shape[0] == 1:
+        # No permutation needed, just copy Y to Y_perm
+        Y_perm = np.copy(Y)
+        
+        # Check if the signal needs to be flipped by comparing max and min values
+        original_max = np.max(S[0])
+        recovered_max = np.max(Y_perm[0])
+        recovered_min = np.min(Y_perm[0])
+        
+        # Calculate the differences to determine if flipping is necessary
+        max_max_diff = abs(abs(original_max) - abs(recovered_max))
+        max_min_diff = abs(abs(original_max) - abs(recovered_min))
+        
+        # If the max_max_diff is greater, it indicates the signal is flipped
         if max_max_diff > max_min_diff:
-            Y_perm[i] = -1 * Y_perm[i]
+            Y_perm[0] = -1 * Y_perm[0]
+            
+    else:
+        # For multiple sources, use BSS evaluation to find the correct permutation
+        _, _, _, perm = mir_eval.separation.bss_eval_sources(S, Y, compute_permutation=True)
+        
+        # Initialize an array to store the permuted separated sources
+        Y_perm = np.empty_like(Y)
+
+        # Permute Y signals based on the permutation variable
+        for i, p in enumerate(perm):
+            Y_perm[i] = Y[p]
+
+        # Adjust the sign of the recovered sources if necessary based on max and min values
+        for i in range(len(S)):
+            original_max = np.max(S[i])
+            recovered_max = np.max(Y_perm[i])
+            recovered_min = np.min(Y_perm[i])
+
+            # Calculate the differences to determine if flipping is necessary
+            max_max_diff = abs(abs(original_max) - abs(recovered_max))
+            max_min_diff = abs(abs(original_max) - abs(recovered_min))
+
+            # If the max_max_diff is greater, it indicates the signal is flipped
+            if max_max_diff > max_min_diff:
+                Y_perm[i] = -1 * Y_perm[i]
 
     return Y_perm
 
@@ -541,17 +560,29 @@ def audio_widget(audio_np, samplerate, names='audio'):
     Parameters:
     - audio_np (numpy.ndarray): 2D array containing audio sources.
     - samplerate (int): Sample rate of the audio sources.
-    - name (str or list): Name prefix for the audio widgets. If it's a list, each audio source will be named accordingly.
+    - names (str or list): Name prefix for the audio widgets. If it's a list, each audio source will be named accordingly.
     """
+    audio_widgets = []
     if isinstance(names, list):
         assert len(names) == audio_np.shape[0], "Number of names should match the number of audio sources."
         for i, audio in enumerate(audio_np):
-            print(f'{names[i]}:')
-            display(Audio(audio, rate=samplerate))
+            name = names[i] + ":"
+            audio_widgets.append(HTML(f"<div style='display:inline-block; margin-right: 10px;'><h3>{name}</h3>"))
+            audio_widgets.append(Audio(audio, rate=samplerate))
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("</div>"))  # Close the div
     else:
         for i, audio in enumerate(audio_np):
-            print(f'{names} {i+1}:')
-            display(Audio(audio, rate=samplerate))
+            name = f"{names} {i+1}:"
+            audio_widgets.append(HTML(f"<div style='display:inline-block; margin-right: 10px;'><h3>{name}</h3>"))
+            audio_widgets.append(Audio(audio, rate=samplerate))
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("<br>"))  # Append a line break
+            audio_widgets.append(HTML("</div>"))  # Close the div
+    display(HTML("<div>" + "".join([widget._repr_html_() for widget in audio_widgets]) + "</div>"))
 
 
 def create_directional_object(mic_type, azimuth):
