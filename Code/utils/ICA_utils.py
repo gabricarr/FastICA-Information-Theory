@@ -129,9 +129,9 @@ def import_audio_folder(folder_path, duration=None):
 
     Returns:
     - processed_audio_data (numpy.ndarray): Normalized audio samples in a numpy array.
-    - sampling_frequency (int): Sampling frequency of the audio files.
+    - samplerate (int): Sampling frequency of the audio files.
     - file_names (list): List of file names in the folder.
-    - length (samples): sample length of all audio samples after the importing and trimming.
+    - length (samples): sample length common to all audio samples after the importing and trimming.
     """
 
     # Suppressione specifica delle avvertenze WavFileWarning
@@ -214,11 +214,11 @@ def compute_snr(S, Y):
     Calculate the Signal-to-Noise Ratio (SNR) for each source.
     
     Args:
-        S (numpy.ndarray): Original sources of shape (n_sources, n_samples).
-        Y (numpy.ndarray): Recovered sources of shape (n_sources, n_samples).
+    - S (numpy.ndarray): Original sources of shape (n_sources, n_samples).
+    - Y (numpy.ndarray): Recovered sources of shape (n_sources, n_samples).
     
     Returns:
-        numpy.ndarray: SNR values for each source, shape (n_sources,).
+    - snr_values (numpy.ndarray): SNR values for each source, shape (n_sources,).
     """
     snr_values = []
     for i in range(S.shape[0]):
@@ -297,21 +297,22 @@ def plot_signals_sequential(t, X, type, scaling = 1, xlim = 30, linewidth = 4):
         axs[i].set_ylim(-1*scaling, 1*scaling)
 
 
-def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_waveform=True, show_spectrogram=True, show_histogram=True, fmax=5000):
+def complete_plot(signals_np, samplerate=44100, names='Signal', start=0, end=None, show_waveform=True, show_spectrogram=True, show_histogram=True, fmax=5000):
     """
     Plot waveforms, spectrograms, and histograms of signals.
 
     Parameters:
-        signals_np (numpy.ndarray): 1D or 2D array containing signals.
-        fs (float): Sampling frequency of the signals.
-        names (list or str): List of names for each signal (default: 'Signal').
-        start (int): Start index for plotting (default: 0).
-        end (int): End index for plotting (default: None, which means until the end).
-        show_waveform (bool): Whether to plot waveforms (default: True).
-        show_spectrogram (bool): Whether to plot spectrograms (default: True).
-        show_histogram (bool): Whether to plot histograms (default: True).
-        fmax (int): Maximum frequency limit for spectrogram plotting (default: 5000 Hz).
+    - signals_np (numpy.ndarray): 1D or 2D array containing signals.
+    - samplerate (float): Sampling frequency of the signals (default: 44100).
+    - names (list or str): List of names for each signal (default: 'Signal').
+    - start (int): Start index for plotting (default: 0).
+    - end (int): End index for plotting (default: None, which means until the end).
+    - show_waveform (bool): Whether to plot waveforms (default: True).
+    - show_spectrogram (bool): Whether to plot spectrograms (default: True).
+    - show_histogram (bool): Whether to plot histograms (default: True).
+    - fmax (int): Maximum frequency limit for spectrogram plotting (default: 5000 Hz).
     """
+
     # Suppress specific warning
     warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
@@ -340,7 +341,7 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         # Plot waveform
         if show_waveform:
             plt.subplot(N, num_plots, i * num_plots + 1)
-            plt.plot(np.arange(len(signals_np[i][start:end])) / fs, signals_np[i][start:end])
+            plt.plot(np.arange(len(signals_np[i][start:end])) / samplerate, signals_np[i][start:end])
             plt.title(f'WAVEFORM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Time (s)')
             plt.ylabel('Amplitude')
@@ -352,7 +353,7 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
         if show_spectrogram:
             plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
             epsilon = 1e-10
-            plt.specgram(signals_np[i][start:end]+epsilon, NFFT=1024, Fs=fs, cmap='viridis', vmin=-80)
+            plt.specgram(signals_np[i][start:end]+epsilon, NFFT=1024, Fs=samplerate, cmap='viridis', vmin=-80)
             plt.title(f'SPECTROGRAM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Time (s)')
             plt.ylabel('Frequency (Hz)')
@@ -374,18 +375,18 @@ def complete_plot(signals_np, fs, names='Signal', start=0, end=None, show_wavefo
     plt.show()
 
 
-def plot_overlapped_signals(S, Y, names, fs):
+def plot_overlapped_signals(S, Y, names, samplerate=44100):
     """
     Plot overlapped original and reconstructed signals.
 
     Parameters:
-        S (list of arrays): List containing original signals.
-        Y (list of arrays): List containing reconstructed signals.
-        names (list of str): List of names for each signal.
-        fs (float): Sampling frequency.
+    - S (numpy.ndarray): Original sources with shape (n_sources, n_samples).
+    - Y (numpy.ndarray): Recovered sources with shape (n_sources, n_samples).
+    - names (list of str): List of names for each signal.
+    - samplerate (float): Sampling frequency (default: 44100).
     """
     # Calculate time axis in seconds
-    time_sec = np.arange(len(S[0])) / fs
+    time_sec = np.arange(len(S[0])) / samplerate
 
     # Create subplots for each pair of signals
     fig, axs = plt.subplots(nrows=len(S), ncols=1, figsize=(10, 3 * len(S)),
@@ -393,8 +394,8 @@ def plot_overlapped_signals(S, Y, names, fs):
 
     # Plot original and reconstructed signals in each subplot
     for i, (original, reconstructed) in enumerate(zip(S, Y)):
-        axs[i].plot(time_sec, original, label="Original", color='blue', alpha=0.8)  # Plot original signal
-        axs[i].plot(time_sec, reconstructed, label="Reconstructed", color='orange', alpha=0.8)  # Plot reconstructed signal
+        axs[i].plot(time_sec, original, label="Original", color='blue', alpha=0.7)  # Plot original signal
+        axs[i].plot(time_sec, reconstructed, label="Reconstructed", color='orange', alpha=0.7)  # Plot reconstructed signal
         axs[i].set_title(f"{names[i]}")  # Set title for the subplot
         axs[i].grid(True)  # Add grid to the subplot
         axs[i].tick_params(axis='both', which='major', labelsize=8)  # Lower font size of major ticks
@@ -418,15 +419,11 @@ def postprocessing(S, Y):
     Additionally, it flips the signals if the sign of maximum and minimum are swapped.
 
     Parameters:
-    - S: numpy array, shape (n_sources, n_samples)
-        Original sources.
-    - Y: numpy array, shape (n_sources, n_samples)
-        Recovered sources.
+    - S (numpy.ndarray): original sources with shape (n_sources, n_samples).
+    - Y (numpy.ndarray): recovered sources with shape (n_sources, n_samples).
 
     Returns:
-    - Y_perm: numpy array, shape (n_sources, n_samples)
-        Permuted separated sources based on the permutation variable extracted by bss_eval
-        and with flipped sign if necessary.
+    - Y_perm (numpy.ndarray): Permuted separated sources with shape (n_sources, n_samples), based on the permutation variable extracted by bss_eval and with flipped sign if necessary.
     """
     
     # Reshape S and Y if they are 1-dimensional to ensure they have shape (1, n_samples)
@@ -486,8 +483,8 @@ def plot_scores(names, scores):
     Plots the Source Separation Metrics (SDR, SIR, SAR, SNR) and mean scores, and prints the mean scores along with the best-reconstructed signal.
     
     Parameters:
-        names (list): List of names of the signals.
-        scores (list): List containing 4 arrays of scores for SDR, SIR, SAR and SNR respectively.
+    - names (list): List of names of the signals.
+    - scores (list): List containing 4 arrays of scores for SDR, SIR, SAR and SNR respectively.
     """
     # Extract SDR, SIR, SAR, SNR from scores
     SDR = scores[0]
@@ -517,7 +514,6 @@ def plot_scores(names, scores):
     ax.bar(x + 1.5*width, SNR, width, label='SNR', color='purple')
     
     # Adding labels, title and grid
-    ax.set_xlabel('Signals')
     ax.set_ylabel('Scores')
     ax.set_title('Source Separation Metrics')
     ax.set_xticks(x)
@@ -535,7 +531,9 @@ def plot_scores(names, scores):
 
     # Find the index of the maximum mean score
     best_signal_index = np.argmax(mean_scores)
+    worste_signal_index=np.argmin(mean_scores)
     print(f"\nThe best-reconstructed signal is {names[best_signal_index]} with a mean score of {mean_scores[best_signal_index]:.2f}")
+    print(f"\nThe worste-reconstructed signal is {names[worste_signal_index]} with a mean score of {mean_scores[worste_signal_index]:.2f}")
 
 
 def play_audio_from_array(audio_np, samplerate=44100):
@@ -553,14 +551,14 @@ def play_audio_from_array(audio_np, samplerate=44100):
     sd.wait()
 
 
-def audio_widget(audio_np, samplerate, names='audio'):
+def audio_widget(audio_np, names='audio', samplerate=44100):
     """
     Create Audio widgets from a 2D NumPy array of audio sources.
 
     Parameters:
     - audio_np (numpy.ndarray): 2D array containing audio sources.
-    - samplerate (int): Sample rate of the audio sources.
     - names (str or list): Name prefix for the audio widgets. If it's a list, each audio source will be named accordingly.
+    - samplerate (int): Sample rate of the audio sources (default: 44100).
     """
     audio_widgets = []
     if isinstance(names, list):
@@ -587,15 +585,14 @@ def audio_widget(audio_np, samplerate, names='audio'):
 
 def create_directional_object(mic_type, azimuth):
     """
-    Create a directional object based on the microphone type and azimuth angle.
+    Create a directional object based on the microphone polar-pattern type and azimuth angle.
 
     Parameters:
-        mic_type (str): Type of microphone pattern.
-            Should be one of 'FIGURE_EIGHT', 'HYPERCARDIOID', 'CARDIOID', 'SUBCARDIOID', or 'OMNI'.
-        azimuth (float): Azimuth angle (horizontal angle) at which the directional object should be oriented, in degrees.
+    - mic_type (str): Type of microphone pattern. Should be one of 'FIGURE_EIGHT', 'HYPERCARDIOID', 'CARDIOID', 'SUBCARDIOID', 'OMNI'.
+    - azimuth (float): Azimuth angle (horizontal angle) at which the directional object should be oriented, in degrees.
 
     Returns:
-        pra.CardioidFamily: Directional object representing the specified microphone pattern oriented at the given azimuth angle.
+    - directional_object (pra.CardioidFamily): Directional object representing the specified microphone pattern oriented at the given azimuth angle.
     """
     # Mapping of mic types to corresponding directivity patterns
     mic_type_mapping = {
