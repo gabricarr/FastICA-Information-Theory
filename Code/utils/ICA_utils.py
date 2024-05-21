@@ -380,17 +380,31 @@ def plot_overlapped_signals(S, Y, names, samplerate=44100):
     Plot overlapped original and reconstructed signals.
 
     Parameters:
-    - S (numpy.ndarray): Original sources with shape (n_sources, n_samples).
-    - Y (numpy.ndarray): Recovered sources with shape (n_sources, n_samples).
-    - names (list of str): List of names for each signal.
+    - S (numpy.ndarray): Original sources with shape (n_sources, n_samples) or (n_samples,).
+    - Y (numpy.ndarray): Recovered sources with shape (n_sources, n_samples) or (n_samples,).
+    - names (list of str or str): List of names for each signal or a single name.
     - samplerate (float): Sampling frequency (default: 44100).
     """
+    # Ensure S and Y are at least 2D arrays
+    if S.ndim == 1:
+        S = S.reshape(1, -1)
+    if Y.ndim == 1:
+        Y = Y.reshape(1, -1)
+
+    # Ensure names is a list
+    if isinstance(names, str):
+        names = [names]
+
     # Calculate time axis in seconds
-    time_sec = np.arange(len(S[0])) / samplerate
+    time_sec = np.arange(S.shape[1]) / samplerate
 
     # Create subplots for each pair of signals
-    fig, axs = plt.subplots(nrows=len(S), ncols=1, figsize=(10, 3 * len(S)),
+    fig, axs = plt.subplots(nrows=S.shape[0], ncols=1, figsize=(10, 3 * S.shape[0]),
                             sharex=True, sharey=True)
+
+    # If there is only one subplot, axs is not an array, so we need to handle that case
+    if S.shape[0] == 1:
+        axs = [axs]
 
     # Plot original and reconstructed signals in each subplot
     for i, (original, reconstructed) in enumerate(zip(S, Y)):
