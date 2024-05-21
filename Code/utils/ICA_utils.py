@@ -364,18 +364,26 @@ def complete_plot(signals_np, samplerate=44100, names='Signal', start=0, end=Non
         # Plot histogram
         if show_histogram:
             plt.subplot(N, num_plots, i * num_plots + plot_index + 1)
-            plt.hist(signals_np[i][start:end], bins=50)
+            plt.hist(signals_np[i][start:end], bins=501)
             plt.title(f'HISTOGRAM - {names[i] if isinstance(names, list) else names} {i+1 if not isinstance(names, list) else ""}')
             plt.xlabel('Amplitude')
             plt.ylabel('Frequency')
             plt.xlim(-1, 1)
             plt.grid(True)
+
+            # Set x-axis to symmetric logarithmic scale
+            plt.xscale('symlog', linthresh=0.01)
+            # Customize the x-axis ticks
+            ax = plt.gca()
+            ticks = [-1, -0.5, -0.1, -0.05, -0.01, 0, 0.01, 0.05, 0.1, 0.5, 1]
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([f'{tick:.2f}' if tick != 0 else '0' for tick in ticks])
     
     plt.tight_layout()
     plt.show()
 
 
-def plot_overlapped_signals(S, Y, names, samplerate=44100):
+def plot_overlapped_signals(S, Y, names='Signal', samplerate=44100):
     """
     Plot overlapped original and reconstructed signals.
 
