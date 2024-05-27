@@ -434,7 +434,7 @@ def plot_overlapped_signals(S, Y, names='Signal', samplerate=44100):
     plt.show()  # Display the plot
 
 
-def postprocessing(S, Y):
+def postprocessing_old(S, Y):
     """
     Function to permute the reconstructed signals from fastICA in the correct order 
     so that they can be subsequently compared with the original signals.
@@ -500,22 +500,75 @@ def postprocessing(S, Y):
     return Y_perm
 
 
-def plot_scores(names, scores):
+def postprocessing(S, Y):
     """
-    Plots the Source Separation Metrics (SDR, SIR, SAR, SNR) and mean scores, and prints the mean scores along with the best-reconstructed signal.
+    Function to permute the reconstructed signals from fastICA in the correct order 
+    so that they can be subsequently compared with the original signals.
+    Additionally, it flips the signals if the sign of dot-product is negative.
+
+    Parameters:
+    - S (numpy.ndarray): Original sources with shape (n_sources, n_samples).
+    - Y (numpy.ndarray): Recovered sources with shape (n_sources, n_samples).
+
+    Returns:
+    - Y_perm (numpy.ndarray): Permuted and sign-corrected separated sources with shape (n_sources, n_samples).
+    """
+
+    # Reshape S and Y if they are 1-dimensional to ensure they have shape (1, n_samples)
+    if S.ndim == 1:
+        S = S.reshape(1, -1)
+    if Y.ndim == 1:
+        Y = Y.reshape(1, -1)
+
+    # Check if there's only one source
+    if S.shape[0] == 1:
+        # No permutation needed, just copy Y to Y_perm
+        Y_perm = np.copy(Y)
+        
+        # Adjust the sign of the recovered source based on dot-product
+        dot_product = np.dot(S[0], Y_perm[0])
+        if dot_product < 0:
+            Y_perm[0] = -1 * Y_perm[0]
+            
+    else:
+        # For multiple sources, use BSS evaluation to find the correct permutation
+        _, _, _, perm = mir_eval.separation.bss_eval_sources(S, Y, compute_permutation=True)
+        
+        # Initialize an array to store the permuted separated sources
+        Y_perm = np.empty_like(Y)
+
+        # Permute and adjust the sign of Y signals based on the permutation variable
+        for i, p in enumerate(perm):
+            Y_perm[i] = Y[p]
+            
+            # Adjust the sign of the recovered source based on dot-product
+            dot_product = np.dot(S[i], Y_perm[i])
+            if dot_product < 0:
+                Y_perm[i] = -1 * Y_perm[i]
+
+    return Y_perm
+
+
+
+def plot_scores(names, scores, legend_loc=None):
+    """
+    Plots the Source Separation Metrics (SDR, SIR, SAR, SNR) and prints the mean scores along with the best-reconstructed signal.
     
     Parameters:
     - names (list): List of names of the signals.
-    - scores (list): List containing 4 arrays of scores for SDR, SIR, SAR and SNR respectively.
+    - scores (list): List containing 4 arrays of scores for SDR, SIR, SAR, and SNR respectively.
+    - legend_loc (str or tuple, optional): Location of the legend. If None, the default location is used. 
+        This can be a string (e.g., 'upper left', 'lower right', etc.) or a tuple of coordinates (x, y).
     """
+    # Import necessary libraries
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
     # Extract SDR, SIR, SAR, SNR from scores
-    SDR = scores[0]
-    SIR = scores[1]
-    SAR = scores[2]
-    SNR = scores[3]
+    SDR, SIR, SAR, SNR = scores
     
     # Calculate mean scores
-    mean_scores = (SDR + SIR + SAR + SNR) / 4
+    mean_scores = np.mean([SDR, SIR, SAR, SNR], axis=0)
     
     # Number of signals
     num_signals = len(names)
@@ -535,27 +588,32 @@ def plot_scores(names, scores):
     ax.bar(x + 0.5*width, SAR, width, label='SAR', color='lightgreen')
     ax.bar(x + 1.5*width, SNR, width, label='SNR', color='purple')
     
-    # Adding labels, title and grid
+    # Adding labels, title, and grid
     ax.set_ylabel('Scores')
     ax.set_title('Source Separation Metrics')
     ax.set_xticks(x)
     ax.set_xticklabels(names)
-    ax.legend()
     ax.grid(axis='y')
+    
+    # Set the legend location if specified
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc)
+    else:
+        ax.legend()  # Use the default location
     
     # Display the plot
     plt.show()
     
     # Print the mean scores and the best-reconstructed signal
     print("Mean Scores:")
-    for i, score in enumerate(mean_scores):
-        print(f"{names[i]}: {score:.2f}")
-
-    # Find the index of the maximum mean score
+    for name, score in zip(names, mean_scores):
+        print(f"{name}: {score:.2f}")
+    
+    # Find the index of the maximum and minimum mean score
     best_signal_index = np.argmax(mean_scores)
-    worste_signal_index=np.argmin(mean_scores)
+    worst_signal_index = np.argmin(mean_scores)
     print(f"\nThe best-reconstructed signal is {names[best_signal_index]} with a mean score of {mean_scores[best_signal_index]:.2f}")
-    print(f"\nThe worste-reconstructed signal is {names[worste_signal_index]} with a mean score of {mean_scores[worste_signal_index]:.2f}")
+    print(f"\nThe worst-reconstructed signal is {names[worst_signal_index]} with a mean score of {mean_scores[worst_signal_index]:.2f}")
 
 
 def play_audio_from_array(audio_np, samplerate=44100):
